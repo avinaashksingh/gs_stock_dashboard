@@ -1,4 +1,5 @@
-# GS-Stock Smooth Dashboard
+# GS-Stock Dashboard
+
 
 A premium, full-stack financial data visualization engine that generates smooth, realistic stock data based on historical trends using a **Momentum-Driven Random Walk** model.
 
@@ -62,3 +63,8 @@ Ensure you have a PostgreSQL instance running. The application expects:
 
 ## 🛠️ Architecture Decisions
 Detailed documentation of the generation models, database migrations, and aesthetic choices are maintained in the [agent_task_log.md](./agent_task_log.md).
+
+## 📸 Previews
+
+### Agent created: 
+![Agent created Dashboard Preview](./data/dashboard_preview_agent.png)
