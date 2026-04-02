@@ -33,8 +33,6 @@ python manage.py runserver 0.0.0.0:8080
 ## Response Format
 ```json
 {
-  "endpoint": "barchart",
-  "delay_seconds": 1.23,
   "data": [
     {
       "Date": "2026-01-02",
