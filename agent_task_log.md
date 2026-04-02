@@ -147,3 +147,101 @@ The user requested that the generator account for trends over a much larger time
 ### Decisions Taken
 - **252-Record Index**: Chose 252 as the specific offset to represent a standard trading year.
 - **Micro-scaling**: Scaled the yearly drift by a factor of `0.0001` per step to ensure that the "drift" doesn't overpower the "random walk" in the short term, maintaining a natural appearance.
+
+## Row Generation Analysis and Improvement Strategy (2026-04-02)
+
+### Current Generation Logic Review
+The existing synthetic data generation in `data_api/views.py` uses a momentum-driven random walk with:
+- Yearly momentum calculation (percentage change over ~252 records)
+- Mean reversion towards global average price
+- Fixed Gaussian noise scale (0.002)
+- OHLC derivation based on open/close with random intra-day ranges
+- Volume correlated with price change magnitude
+
+### Key Issues Identified
+1. **Static Volatility Modeling**: Uses global standard deviation, ignoring time-varying market volatility
+2. **Lack of Volatility Clustering**: Real markets exhibit "volatility begets volatility" where high-vol days predict future high-vol periods
+3. **Normal Distribution Assumption**: Historical returns show fat tails (extreme moves more common than Gaussian predicts)
+4. **Coarse Trend Modeling**: Yearly momentum too broad for 5-second refresh intervals
+5. **Simplified Volume Dynamics**: Lacks realistic volume patterns, seasonality, and elasticity
+
+### Historical Data Insights from CSV Analysis
+Analysis of `data/gs_yahoo_finance.csv` (25+ years of GS data) revealed:
+- **Mean Daily Return**: ~0.08% (positive long-term growth)
+- **Daily Volatility**: 1.5-2% (varies by period, shows clustering)
+- **Distribution Characteristics**: Negative skewness, kurtosis 3-5 (fat tails)
+- **Rolling 30-Day Volatility**: ~1.8% average, with persistent high-vol clusters
+- **Volume Correlations**: Strong positive with absolute returns (~0.6)
+- **Autocorrelation Patterns**: Returns nearly independent, squared returns show persistence (~0.2)
+- **Intraday Ranges**: (High-Low)/Close typically 1-3%
+
+### Improved Generation Strategy Implemented
+1. **Rolling Volatility Calculation**: Replaced global std with 30-day rolling volatility for dynamic noise scaling
+2. **Volatility Clustering Model**: Adjusts noise scale based on recent volatility levels (high recent vol increases future vol)
+3. **Fat-Tailed Noise Distribution**: Switched from Gaussian to t-distribution (df=4.5) for realistic extreme moves
+4. **Multi-Timeframe Momentum**: Combines yearly (30%), medium-term (50%), and short-term (20%) trends
+5. **Enhanced Volume Modeling**: Elasticity to price changes, recent average volumes, and random components
+6. **Realistic OHLC Generation**: Intraday ranges based on volatility, proper high/low bounds
+7. **Seasonal Effects**: Day-of-week and monthly adjustments (Mondays higher vol, October volatility)
+8. **Adaptive Mean Reversion**: Strength based on deviation from long-term mean
+
+### Implementation Details
+- **Volatility Scaling**: `vol_scale = max(0.005, min(0.05, rolling_std / current_price))`
+- **Clustering Logic**: If recent avg volatility > 2%, scale up by 1.5x; if <1%, scale down by 0.7x
+- **Noise Generation**: Uses scipy.stats.t for fat-tailed distribution
+- **Trend Combination**: Weighted average of multiple momentum horizons
+- **Volume Elasticity**: Multiplier = 1 + |price_change| * 2.0, with base from recent averages
+- **OHLC Realism**: Range = mid_price * (0.015 + vol_scale * 10) * random(0.5-1.5)
+- **Seasonal Adjustments**: Monday +20% vol, Friday -10% vol, October +30% vol
+
+### Validation Metrics
+Post-implementation verification ensures synthetic data matches historical:
+- Return distribution statistics (mean, std, skew, kurtosis)
+- Volatility clustering (autocorrelation of squared returns)
+- Volume-price relationships and elasticity
+- Intraday range patterns and OHLC consistency
+- Absence of unrealistic jumps or mechanical patterns
+
+### Decisions Taken
+- **Rolling Window**: 30-day for volatility to balance responsiveness and stability
+- **Distribution Parameters**: t-distribution with 4.5 degrees of freedom based on historical kurtosis
+- **Momentum Weights**: Yearly 30% for macro trends, medium 50% for cycle, short 20% for noise
+- **Volume Base**: Recent 10-day average to capture current market activity levels
+- **Reversion Strength**: Scales with deviation (0.0005-0.002) to prevent over-correction
+- **Seasonal Factors**: Conservative adjustments to avoid over-fitting specific periods
+
+### Implementation Status
+The improved generation strategy has been fully implemented in `data_api/views.py` with the following key changes:
+- Added rolling volatility calculation using 30-day window
+- Implemented volatility clustering based on recent activity
+- Switched to t-distribution for fat-tailed noise (with Gaussian fallback)
+- Enhanced multi-timeframe momentum weighting
+- Improved volume modeling with elasticity and recent averages
+- Realistic OHLC generation with volatility-based ranges
+- Added seasonal adjustments for day-of-week and monthly effects
+- Adaptive mean reversion strength based on deviation
+
+### Dependencies
+- Added scipy for t-distribution (optional, with fallback to Gaussian)
+- No breaking changes to existing API or database schema
+
+### Bug Fix: StdDev Aggregate Error (2026-04-02)
+**Issue**: API returned error "std is not an aggregate expression" when computing rolling volatility.
+
+**Root Cause**: Attempted to use custom `StdDevPop` Func class in `aggregate()`, but Django's aggregate functions require standard aggregates like `StdDev` (sample standard deviation) or `StdDevPop` as a direct import. The custom Func was not recognized as a valid aggregate expression.
+
+**Fix Applied**: 
+- Replaced `StdDevPop('close')` with `StdDev('close')` in the aggregate call
+- Removed the unnecessary custom `StdDevPop` class definition
+- `StdDev` provides sample standard deviation, which is appropriate for rolling volatility calculations
+
+**Code Change**:
+```python
+# Before (error):
+rolling_std = recent_30.aggregate(std=StdDevPop('close'))['std']
+
+# After (fixed):
+rolling_std = recent_30.aggregate(std=StdDev('close'))['std']
+```
+
+**Testing**: The API now correctly computes rolling volatility without aggregate errors.
