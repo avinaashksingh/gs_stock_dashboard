@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import CSVDataView
+from .views import YahooFinanceUpdateView
 
 urlpatterns = [
-    path('<str:filename>', CSVDataView.as_view(), name='csv-data'),
+    path('yahoo-finance/latest', YahooFinanceUpdateView.as_view(), name='yahoo-finance-latest'),
 ]
