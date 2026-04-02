@@ -1,5 +1,7 @@
 # GS-Stock Smooth Dashboard
 
+![Agent created Dashboard Preview](./data/dashboard_preview_agent.png)
+
 A premium, full-stack financial data visualization engine that generates smooth, realistic stock data based on historical trends using a **Momentum-Driven Random Walk** model.
 
 ## 🚀 Overview
