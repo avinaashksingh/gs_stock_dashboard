@@ -8,6 +8,10 @@ This application transitions from static CSV analysis to a dynamic, PostgreSQL-b
 
 ### Key Features
 - **Smooth Stochastic Engine**: Uses Geometric Brownian Motion with 1-Year Momentum Tracking and Mean Reversion to generate lifelike market moves.
+- **Adaptive Volatility**: 30-day rolling volatility with clustering logic and seasonality (day-of-week, October) to mimic real market regimes.
+- **Fat-Tail Noise**: Optional t-distribution (scipy) engine for rare extreme moves, fallback to normal noise when unavailable.
+- **Multi-Timeframe Momentum**: Combines yearly, 30-day, and 5-day trends for realistic drift and intra-day behavior.
+- **Improved Volume Behavior**: Volume is based on recent moving average, price-change elasticity, and stochastic noise for realistic activity spikes.
 - **PostgreSQL Driven**: Maintains a fixed-size dataset with a "One In, One Out" FIFO logic.
 - **Monochromatic Dashboard**: A React-based (Vite) interface featuring glassmorphism, Area charts (Recharts), and real-time refresh timers.
 - **Trend Awareness**: The generator analyzes the slope of the last 252 trading days (1 year) to apply a realistic macro-drift to the micro-refreshes.
